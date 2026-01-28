@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VVD Editor</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    
+    <style>
+        /* Custom Font Face */
+        @font-face {
+            font-family: 'Google Sans';
+            src: url('https://img.btm-m.site/GoogleSansFlex.ttf') format('truetype');
+            font-weight: 100 900;
+            font-style: normal;
+        }
+
+        :root {
+            /* Apple-style easing curve */
+            --apple-ease: cubic-bezier(0.32, 0.72, 0, 1);
+        }
+
+        body {
+            transition: background-color 0.5s var(--apple-ease), color 0.5s var(--apple-ease);
+        }
+
+        /* --- Custom Scrollbar Beautification --- */
+        /* Applies to both textarea and the settings modal */
+        *::-webkit-scrollbar {
+            width: 6px; /* Thinner */
+            height: 6px;
+        }
+        *::-webkit-scrollbar-track {
+            background: transparent;
+            margin-block: 4px; /* Space at ends */
+        }
+        *::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.15); /* Softer grey */
+            border-radius: 9999px; /* Pill shape */
+            border: 2px solid transparent; /* Padding effect */
+            background-clip: content-box;
+        }
+        *::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(0, 0, 0, 0.25);
+        }
+        .dark *::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+        .dark *::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255, 255, 255, 0.25);
+        }
+        
+        /* Material Ripple Simulation */
+        .ripple {
+            position: relative;
+            overflow: hidden;
+            /* Ensure fixed aspect ratio circles clip correctly */
+            mask-image: radial-gradient(white, black); 
+            -webkit-mask-image: -webkit-radial-gradient(white, black);
+        }
+        .ripple::after {
+            content: "";
+            display: block;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            background-image: radial-gradient(circle, currentColor 10%, transparent 10.01%);
+            background-repeat: no-repeat;
+            background-position: 50%;
+            transform: scale(10, 10);
+            opacity: 0;
+            transition: transform .5s, opacity 1s;
+        }
+        .ripple:active::after {
+            transform: scale(0, 0);
+            opacity: 0.1;
+            transition: 0s;
+        }
+
+        /* Modal Animation with Apple-style Physics */
+        dialog {
+            transition: opacity 0.4s var(--apple-ease), transform 0.4s var(--apple-ease), display 0.4s allow-discrete, overlay 0.4s allow-discrete;
+            opacity: 0;
+            transform: scale(0.96) translateY(10px);
+        }
+        dialog[open] {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+        @starting-style {
+            dialog[open] {
+                opacity: 0;
+                transform: scale(0.96) translateY(10px);
+            }
+        }
+        dialog::backdrop {
+            background-color: rgba(0, 0, 0, 0);
+            transition: display 0.4s allow-discrete, overlay 0.4s allow-discrete, background-color 0.5s var(--apple-ease);
+        }
+        dialog[open]::backdrop {
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+        @starting-style {
+            dialog[open]::backdrop {
+                background-color: rgba(0, 0, 0, 0);
+            }
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            light: '#2da8a1', // Darker Miku Green for text in light mode
+                            DEFAULT: '#39c5bb', // Hatsune Miku Green (Base)
+                            dark: '#86f0e6', // Lighter Miku Green for text in dark mode
+                            container: '#cbf7f2', // Very light Miku tint
+                            onContainer: '#003734', // Very dark teal
+                        },
+                        surface: {
+                            light: '#fafdfc',
+                            dark: '#191c1c',
+                            variant: '#eff5f4',
+                            variantDark: '#3f4948',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Google Sans"', 'sans-serif'],
+                        mono: ['"Roboto Mono"', 'monospace'],
+                    },
+                    borderRadius: {
+                        '4xl': '2rem',
+                        '5xl': '2.5rem',
+                    },
+                    transitionTimingFunction: {
+                        'apple': 'cubic-bezier(0.32, 0.72, 0, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface-light dark:bg-surface-dark text-slate-900 dark:text-slate-100 h-screen flex flex-col overflow-hidden selection:bg-[#39c5bb] selection:text-white dark:selection:bg-[#39c5bb] dark:selection:text-slate-900">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between px-6 py-4 md:px-10 md:py-6 shrink-0 z-10">
+        <div class="flex flex-col">
+            <h1 class="text-3xl md:text-4xl font-bold tracking-tight text-primary dark:text-primary-dark transition-colors duration-500 ease-apple">VVD Editor</h1>
+        </div>
+        
+        <!-- Fixed: Perfect Circle using explicit dimensions + Flex centering -->
+        <button id="themeToggle" class="ripple w-12 h-12 flex items-center justify-center rounded-full hover:bg-surface-variant hover:dark:bg-surface-variantDark transition-colors duration-300 ease-apple" aria-label="Toggle Theme" title="Toggle Theme">
+            <span class="material-symbols-rounded text-2xl" id="themeIcon">dark_mode</span>
+        </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col md:flex-row gap-4 px-4 pb-4 md:px-8 md:pb-8 h-full overflow-hidden">
+        
+        <!-- Editor Container -->
+        <div class="flex-1 bg-surface-variant dark:bg-[#202323] rounded-3xl md:rounded-4xl p-1 relative shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col group transition-all duration-500 ease-apple hover:shadow-md">
+            <!-- Toolbar Overlay (Floating inside) -->
+            <div class="absolute top-4 right-6 flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity duration-300 ease-apple pointer-events-none">
+                <span class="text-xs font-mono bg-white/50 dark:bg-black/50 backdrop-blur-md px-2 py-1 rounded-md text-slate-500 dark:text-slate-400">PLAIN TEXT MODE</span>
+            </div>
+
+            <textarea 
+                id="editor" 
+                class="w-full h-full bg-transparent border-0 resize-none focus:ring-0 p-6 md:p-8 font-mono text-sm md:text-base leading-relaxed text-slate-800 dark:text-slate-200 outline-none placeholder-slate-400 dark:placeholder-slate-600 pb-20"
+                spellcheck="false"
+                placeholder="Enter or drag file here... (Auto-decode on import, Auto-encode on export)"></textarea>
+
+            <!-- Floating Settings Button (Bottom Right of Textarea) -->
+            <button id="settingsBtn" class="absolute bottom-6 right-6 ripple bg-primary dark:bg-[#39c5bb] text-white dark:text-black w-14 h-14 flex items-center justify-center rounded-2xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 ease-apple z-20" title="Project Settings">
+                <span class="material-symbols-rounded text-2xl">tune</span>
+            </button>
+        </div>
+
+        <!-- Sidebar / Actions -->
+        <div class="flex md:flex-col gap-3 shrink-0 md:w-64">
+            
+            <!-- Action Card -->
+            <div class="bg-primary-container dark:bg-[#004f58] text-primary-onContainer dark:text-cyan-50 rounded-3xl p-6 flex flex-col gap-4 shadow-sm md:h-auto transition-colors duration-500 ease-apple">
+                <div class="hidden md:block">
+                    <h2 class="text-lg font-bold">Actions</h2>
+                    <p class="text-xs opacity-70 mt-1">File operations</p>
+                </div>
+
+                <!-- Import Button -->
+                <input type="file" id="fileInput" class="hidden" accept=".vvd,.txt,*">
+                <button onclick="document.getElementById('fileInput').click()" 
+                    class="ripple w-full flex items-center justify-center md:justify-start gap-3 bg-white/30 dark:bg-black/20 hover:bg-white/50 dark:hover:bg-black/30 text-inherit font-medium py-4 px-6 rounded-2xl transition-all duration-300 ease-apple">
+                    <span class="material-symbols-rounded">file_open</span>
+                    <span class="hidden md:inline">Import VVD</span>
+                </button>
+
+                <!-- Filename Input -->
+                <div class="flex flex-col gap-1 w-full">
+                    <label for="exportName" class="text-[10px] uppercase font-bold tracking-wider opacity-60 ml-2">Export Filename</label>
+                    <div class="flex items-center bg-white/30 dark:bg-black/20 rounded-2xl px-4 py-3 transition-colors duration-300 ease-apple focus-within:bg-white/50 focus-within:dark:bg-black/30">
+                        <input type="text" id="exportName" value="data" 
+                            class="bg-transparent border-none w-full text-inherit placeholder-inherit/50 focus:ring-0 text-sm font-mono p-0 outline-none"
+                            placeholder="filename">
+                        <span class="text-xs opacity-60 ml-1 font-mono">.vvd</span>
+                    </div>
+                </div>
+
+                <!-- Export Button -->
+                <button id="exportBtn"
+                    class="ripple w-full flex items-center justify-center md:justify-start gap-3 bg-primary dark:bg-[#39c5bb] text-white dark:text-black font-bold py-4 px-6 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 ease-apple">
+                    <span class="material-symbols-rounded">save</span>
+                    <span class="hidden md:inline">Export VVD</span>
+                </button>
+            </div>
+
+            <!-- Stats/Info Card (Optional for spacing) -->
+            <div class="hidden md:flex bg-white dark:bg-[#252828] rounded-3xl p-6 flex-col gap-2 border border-slate-100 dark:border-slate-700 flex-1 transition-colors duration-500 ease-apple">
+                <h3 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</h3>
+                <div class="mt-auto">
+                    <div class="text-3xl font-mono text-primary dark:text-primary-dark" id="charCount">0</div>
+                    <div class="text-xs text-slate-400">Characters</div>
+                </div>
+            </div>
+            
+            <!-- Mobile Only: Quick Stats -->
+            <div class="md:hidden flex items-center justify-center px-4 bg-white dark:bg-[#252828] rounded-3xl border border-slate-100 dark:border-slate-700">
+                <span class="text-xs font-mono text-slate-500" id="charCountMobile">0 ch</span>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-3 text-xs text-slate-400 dark:text-slate-600 font-medium">
+        <p>Developed with Gemini</p>
+        <p id="copyright">© 2024 btm_m All Rights Reserved.</p>
+    </footer>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-6 py-3 rounded-full shadow-xl transform translate-y-20 opacity-0 transition-all duration-500 ease-apple z-50 flex items-center gap-2 pointer-events-none">
+        <span class="material-symbols-rounded text-sm" id="toastIcon">info</span>
+        <span id="toastMsg" class="font-medium text-sm">Notification</span>
+    </div>
+
+    <!-- Settings Dialog (Modal) -->
+    <dialog id="settingsDialog" class="bg-white dark:bg-[#191c1c] text-slate-900 dark:text-slate-100 rounded-3xl p-0 shadow-2xl backdrop:backdrop-blur-sm max-w-lg w-full m-auto border border-slate-200 dark:border-slate-700 overflow-hidden outline-none">
+        <div class="flex flex-col h-full max-h-[85vh]">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-surface-variant dark:bg-[#202323] sticky top-0 z-10">
+                <h3 class="text-xl font-bold text-primary dark:text-primary-dark flex items-center gap-2">
+                    <span class="material-symbols-rounded">tune</span> Project Settings
+                </h3>
+                <!-- Fixed: Perfect Circle using explicit dimensions -->
+                <button id="closeSettings" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors duration-200 ease-apple">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
+            </div>
+            
+            <!-- Scrollable Content Area -->
+            <div class="p-6 overflow-y-auto space-y-6">
+                
+                <!-- Group 1: Meta -->
+                <div class="space-y-4">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Meta Info</h4>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium opacity-70">ID (VoiceBank Type)</label>
+                            <input type="text" data-key="ID" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="VOCALOID VIRTUAL VOICE">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium opacity-70">Format</label>
+                            <input type="text" data-key="FORMAT" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="4.0.0.0">
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-1">
+                        <label class="text-xs font-medium opacity-70">Voice Name</label>
+                        <input type="text" data-key="VOICENAME" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-primary dark:text-[#39c5bb] focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="MIKU_V4X_Original_EVEC">
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-xs font-medium opacity-70">Voice ID String</label>
+                        <input type="text" data-key="VOICEIDSTR" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-xs focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="BCNFCY43LB2LZCD4">
+                    </div>
+                </div>
+
+                <hr class="border-slate-100 dark:border-slate-800">
+
+                <!-- Group 2: Parameters -->
+                <div class="space-y-4">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Voice Parameters</h4>
+                    
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium opacity-70">Breathiness</label>
+                            <input type="number" data-key="Breathiness" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="0">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium opacity-70">Brightness</label>
+                            <input type="number" data-key="Brightness" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="0">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium opacity-70">Clearness</label>
+                            <input type="number" data-key="Clearness" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="0">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium opacity-70">Opening</label>
+                            <input type="number" data-key="Opening" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="0">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium opacity-70">Gender Factor</label>
+                            <input type="number" data-key="Gender Factor" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="0">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium opacity-70">Growl</label>
+                            <input type="number" data-key="Growl" class="setting-input w-full bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none transition-shadow duration-300 ease-apple" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-4 bg-surface-variant dark:bg-[#202323] border-t border-slate-100 dark:border-slate-800 text-xs text-center text-slate-400">
+                Changes are automatically synced to the editor.
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+        // --- Configuration ---
+        const vvd_dict = {
+            'A': '[','[': 'A','_': 'E','E': '_','H': 'R','S': 'I','O': 'U','J': 'P','P': 'J',
+            'K': 'Q','Q': 'K','W': 'M','M': 'W','I': 'S','^': 'D','D': '^','\\': 'F','F': '\\',
+            ']': 'G','G': ']','R': 'H','U': 'O','@': 'Z','Z': '@','B': 'X','X': 'B','C': 'Y',
+            'Y': 'C','L': 'V','V': 'L','T': 'N','N': 'T','+': '1','(': '2',')': '3','.': '4',
+            '/': '5',',': '6','-': '7','"': '8','#': '9','*': '0','1': '+','2': '(', '3': ')',
+            '4': '.', '5': '/', '6': ',', '7': '-', '8': '"', '9': '#', '0': '*', "'": '=',
+            '=': "'", '{': 'a','a': '{','h': 'r','r': 'h','n': 't','t': 'n','o': 'u','u': 'o',
+            'g': '}','}': 'g','j': 'p','p': 'j','k': 'q','q': 'k','i': 's','s': 'i','e': '\x7f',
+            '\x7f': 'e','~': 'd','d': '~','b': 'x','x': 'b','c': 'y','y': 'c','l': 'v','v': 'l',
+            '`': 'z','z': '`','m': 'w','w': 'm','f': '|','|': 'f'
+        };
+
+        // --- Logic ---
+        
+        function transcode(str) {
+            let result = '';
+            for (let i = 0; i < str.length; i++) {
+                const char = str[i];
+                result += vvd_dict[char] !== undefined ? vvd_dict[char] : char;
+            }
+            return result;
+        }
+
+        // --- UI Interactions ---
+
+        const editor = document.getElementById('editor');
+        const fileInput = document.getElementById('fileInput');
+        const exportBtn = document.getElementById('exportBtn');
+        const exportNameInput = document.getElementById('exportName');
+        const charCount = document.getElementById('charCount');
+        const charCountMobile = document.getElementById('charCountMobile');
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const html = document.documentElement;
+        
+        // Settings Dialog Elements
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsDialog = document.getElementById('settingsDialog');
+        const closeSettingsBtn = document.getElementById('closeSettings');
+        const settingInputs = document.querySelectorAll('.setting-input');
+
+        // Auto Year
+        document.getElementById('copyright').innerText = `© ${new Date().getFullYear()} btm_m All Rights Reserved.`;
+
+        // --- Theme Handling System ---
+        
+        function updateThemeIcon() {
+            const isDark = html.classList.contains('dark');
+            themeIcon.textContent = isDark ? 'light_mode' : 'dark_mode';
+        }
+
+        function setTheme(isDark) {
+            if (isDark) {
+                html.classList.add('dark');
+            } else {
+                html.classList.remove('dark');
+            }
+            updateThemeIcon();
+        }
+
+        themeToggle.addEventListener('click', () => {
+            const isDarkNow = html.classList.contains('dark');
+            const newMode = !isDarkNow;
+            setTheme(newMode);
+            localStorage.setItem('theme', newMode ? 'dark' : 'light');
+            showToast(newMode ? 'Switched to Dark Mode' : 'Switched to Light Mode', 'brightness_6');
+        });
+
+        const systemDarkMode = window.matchMedia('(prefers-color-scheme: dark)');
+        systemDarkMode.addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                setTheme(e.matches);
+                showToast('Theme synced with system', 'settings_brightness');
+            }
+        });
+
+        const storedTheme = localStorage.getItem('theme');
+        if (storedTheme) {
+            setTheme(storedTheme === 'dark');
+        } else {
+            setTheme(systemDarkMode.matches);
+        }
+
+        // --- Editor Logic ---
+
+        editor.addEventListener('input', () => {
+            const len = editor.value.length;
+            charCount.innerText = len;
+            charCountMobile.innerText = len + ' ch';
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const nameParts = file.name.split('.');
+            if (nameParts.length > 1) nameParts.pop(); 
+            exportNameInput.value = nameParts.join('.');
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const rawContent = event.target.result;
+                try {
+                    const decodedContent = transcode(rawContent);
+                    editor.value = decodedContent;
+                    editor.dispatchEvent(new Event('input'));
+                    showToast('File imported and auto-decoded', 'check_circle');
+                } catch (err) {
+                    showToast('Decoding failed', 'error');
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+            fileInput.value = ''; 
+        });
+
+        exportBtn.addEventListener('click', () => {
+            const content = editor.value;
+            if (!content) {
+                showToast('Content is empty, cannot export', 'warning');
+                return;
+            }
+
+            try {
+                const encodedContent = transcode(content);
+                
+                let filename = exportNameInput.value.trim();
+                if (!filename) filename = `exported_${new Date().getTime()}`;
+                filename = filename.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5]/g, '_'); 
+
+                const blob = new Blob([encodedContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${filename}.vvd`; 
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showToast(`Exported: ${filename}.vvd`, 'download');
+            } catch (err) {
+                showToast('Export failed', 'error');
+                console.error(err);
+            }
+        });
+
+        // --- Settings / Parsing Logic ---
+
+        // Regex to match "KEY" = "VALUE"
+        // Captures Group 1: Key, Group 2: Value
+        const kvRegex = /"([^"]+)"\s*=\s*"([^"]*)"/g;
+
+        function getEditorValueForKey(key) {
+            const content = editor.value;
+            // Reset regex
+            const regex = new RegExp(`"${key}"\\s*=\\s*"([^"]*)"`);
+            const match = content.match(regex);
+            return match ? match[1] : '';
+        }
+
+        function setEditorValueForKey(key, value) {
+            let content = editor.value;
+            const regex = new RegExp(`"${key}"\\s*=\\s*"[^"]*"`);
+            const newLine = `"${key}" = "${value}"`;
+
+            if (regex.test(content)) {
+                // Replace existing
+                content = content.replace(regex, newLine);
+            } else {
+                // Append new
+                if (content.trim() !== '') {
+                     content += '\n' + newLine;
+                } else {
+                    content = newLine;
+                }
+            }
+            editor.value = content;
+            editor.dispatchEvent(new Event('input')); // Update char count
+        }
+
+        // Open Dialog
+        settingsBtn.addEventListener('click', () => {
+            // Populate inputs from editor
+            settingInputs.forEach(input => {
+                const key = input.dataset.key;
+                const val = getEditorValueForKey(key);
+                if (val) {
+                    input.value = val;
+                } else {
+                    // Set defaults if empty for certain fields, or keep empty
+                    if (key === 'ID' && !val) input.value = "VOCALOID VIRTUAL VOICE";
+                    else if (key === 'FORMAT' && !val) input.value = "4.0.0.0";
+                    else if (key === 'Growl' && !val) input.value = "1";
+                    else if (!val) input.value = "0"; // Default for numbers
+                    
+                    // Trigger sync to editor immediately if it was missing? 
+                    // No, let's wait for user input or explicit save, 
+                    // OR should we populate the editor with defaults if opened?
+                    // User request: "support inputting... and automatically sync". 
+                    // Let's just fill the input.
+                }
+            });
+            settingsDialog.showModal();
+        });
+
+        // Close Dialog
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsDialog.close();
+        });
+
+        // Close on clicking backdrop
+        settingsDialog.addEventListener('click', (e) => {
+            const rect = settingsDialog.getBoundingClientRect();
+            const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+              rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+            if (!isInDialog) {
+                settingsDialog.close();
+            }
+        });
+
+        // Auto Sync Logic: Input -> Editor
+        settingInputs.forEach(input => {
+            input.addEventListener('input', (e) => {
+                const key = e.target.dataset.key;
+                const value = e.target.value;
+                setEditorValueForKey(key, value);
+            });
+        });
+
+        // --- Drag and Drop ---
+        const dropZone = document.querySelector('body');
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('bg-primary-light/10');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-primary-light/10');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-primary-light/10');
+            
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+
+        // Toast
+        let toastTimeout; // Added declaration here
+        function showToast(msg, iconName = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.innerText = msg;
+            toastIcon.innerText = iconName;
+            
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+    </script>
+</body>
+</html>
